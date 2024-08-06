@@ -58,6 +58,9 @@ func (page *Page) Build(ctx *BuildContext, option *BuildOption) (*goquery.Docume
 
 	body := doc.Find("body")
 	body.SetAttr("s:ns", namespace)
+	body.SetAttr("s:public", option.PublicRoot) // Save public root
+	body.SetAttr("s:assets", option.AssetRoot)
+
 	// Bind the Page events
 	if !option.JitMode {
 		page.BindEvent(ctx, doc.Selection, "__page", true)
@@ -69,6 +72,19 @@ func (page *Page) Build(ctx *BuildContext, option *BuildOption) (*goquery.Docume
 	}
 	if warnings != nil && len(warnings) > 0 {
 		ctx.warnings = append(ctx.warnings, warnings...)
+	}
+
+	// Prepend the libsui.min.js
+	if !option.IgnoreLibSUI {
+		script := ScriptNode{
+			Parent: "head",
+			Attrs: []html.Attribute{
+				{Key: "src", Val: fmt.Sprintf("%s/libsui.min.js", option.AssetRoot)},
+				{Key: "type", Val: "text/javascript"},
+				{Key: "name", Val: "libsui"},
+			},
+		}
+		ctx.scripts = append([]ScriptNode{script}, ctx.scripts...)
 	}
 
 	// Scripts
@@ -205,6 +221,9 @@ func (page *Page) BuildAsComponent(sel *goquery.Selection, ctx *BuildContext, op
 
 	// Pass the component props
 	first := body.Children().First()
+	first.SetAttr("s:public", option.PublicRoot) // Save public root
+	first.SetAttr("s:assets", option.AssetRoot)
+
 	// page.copyProps(ctx, sel, first, attrs...)
 	page.parseProps(sel, first, attrs...)
 	page.copySlots(sel, first)

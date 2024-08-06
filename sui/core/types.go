@@ -262,6 +262,7 @@ type BuildOption struct {
 	PublicRoot      string                 `json:"public_root,omitempty"`
 	AssetRoot       string                 `json:"asset_root,omitempty"`
 	IgnoreAssetRoot bool                   `json:"ignore_asset_root,omitempty"`
+	IgnoreLibSUI    bool                   `json:"ignore_lib_sui,omitempty"`
 	IgnoreDocument  bool                   `json:"ignore_document,omitempty"`
 	JitMode         bool                   `json:"jit_mode,omitempty"`
 	WithWrapper     bool                   `json:"with_wrapper,omitempty"`
@@ -374,18 +375,26 @@ type PageConfig struct {
 type PageSetting struct {
 	Title       string   `json:"title,omitempty"`
 	Guard       string   `json:"guard,omitempty"`
-	CacheStore  string   `json:"cache_store,omitempty"`
+	CacheStore  string   `json:"cacheStore,omitempty"`
 	Cache       int      `json:"cache,omitempty"`
 	Root        string   `json:"root,omitempty"`
-	DataCache   int      `json:"data_cache,omitempty"`
+	DataCache   int      `json:"dataCache,omitempty"`
 	Description string   `json:"description,omitempty"`
 	SEO         *PageSEO `json:"seo,omitempty"`
+	API         *PageAPI `json:"api,omitempty"`
 }
 
 // PageConfigRendered is the struct for the page config rendered
 type PageConfigRendered struct {
 	Title string `json:"title,omitempty"`
 	Link  string `json:"link,omitempty"`
+}
+
+// PageAPI is the struct for the page api
+type PageAPI struct {
+	Prefix       string            `json:"prefix,omitempty"`
+	DefaultGuard string            `json:"defaultGuard,omitempty"`
+	Guards       map[string]string `json:"guards,omitempty"`
 }
 
 // PageSEO is the struct for the page seo

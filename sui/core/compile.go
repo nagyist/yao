@@ -19,11 +19,11 @@ var importAssetsRe = regexp.MustCompile(`import\s*\t*\n*\s*['"]@assets\/([^'"]+)
 var AssetsRe = regexp.MustCompile(`[` + quoteRe + `]@assets\/([^` + quoteRe + `]+)[` + quoteRe + `]`) // '@assets/foo.js' or "@assets/foo.js" or `@assets/foo`
 
 // Compile the page
-func (page *Page) Compile(ctx *BuildContext, option *BuildOption) (string, []string, error) {
+func (page *Page) Compile(ctx *BuildContext, option *BuildOption) (string, string, []string, error) {
 
 	doc, warnings, err := page.Build(ctx, option)
 	if err != nil {
-		return "", warnings, fmt.Errorf("Page build error: %s", err.Error())
+		return "", "", warnings, fmt.Errorf("Page build error: %s", err.Error())
 	}
 
 	if warnings != nil && len(warnings) > 0 {
@@ -58,20 +58,15 @@ func (page *Page) Compile(ctx *BuildContext, option *BuildOption) (string, []str
 
 	}
 
-	// SUI lib
-	lib, err := libsui(option.ScriptMinify)
-	if err != nil {
-		return "", warnings, err
-	}
-	head.AppendHtml("\n\n" + `<script name="sui" type="text/javascript">` + lib + `</script>` + "\n\n")
-
 	// Page Config
 	page.Config = page.GetConfig()
 
 	// Config Data
+	config := ""
 	if page.Config != nil {
+		config = page.ExportConfig()
 		body.AppendHtml("\n\n" + `<script name="config" type="json">` + "\n" +
-			page.ExportConfig() +
+			config +
 			"\n</script>\n\n",
 		)
 	}
@@ -101,11 +96,11 @@ func (page *Page) Compile(ctx *BuildContext, option *BuildOption) (string, []str
 	page.ReplaceDocument(doc)
 	html, err := doc.Html()
 	if err != nil {
-		return "", warnings, fmt.Errorf("Generate html error: %s", err.Error())
+		return "", "", warnings, fmt.Errorf("Generate html error: %s", err.Error())
 	}
 
 	// @todo: Minify the html
-	return html, warnings, nil
+	return html, config, warnings, nil
 }
 
 // CompileAsComponent compile the page as component

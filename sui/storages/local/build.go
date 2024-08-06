@@ -124,6 +124,12 @@ func (tmpl *Template) Build(option *core.BuildOption) ([]string, error) {
 		return warnings, err
 	}
 
+	// Add sui lib to the global
+	err = tmpl.UpdateJSSDK(option)
+	if err != nil {
+		return warnings, err
+	}
+
 	// Execute the build after hook
 	if option.ExecScripts {
 		res := tmpl.ExecAfterBuildScripts()
@@ -198,6 +204,44 @@ func (tmpl *Template) SyncAssetFile(file string, option *core.BuildOption) error
 	}
 
 	return copy(sourceFile, targetFile)
+}
+
+// UpdateJSSDK update the js sdk
+func (tmpl *Template) UpdateJSSDK(option *core.BuildOption) error {
+
+	jsCode, sourceMap, err := core.LibSUI()
+	if err != nil {
+		return err
+	}
+
+	// get source abs path
+	root, err := tmpl.local.DSL.PublicRoot(option.Data)
+	if err != nil {
+		log.Error("SyncAssets: Get the public root error: %s. use %s", err.Error(), tmpl.local.DSL.Public.Root)
+		root = tmpl.local.DSL.Public.Root
+	}
+
+	targetRoot := filepath.Join(application.App.Root(), "public", root, "assets")
+
+	file := filepath.Join(targetRoot, "libsui.min.js")
+	mapFile := filepath.Join(targetRoot, "libsui.min.js.map")
+
+	// create the target directory
+	if exist, _ := os.Stat(targetRoot); exist == nil {
+		os.MkdirAll(targetRoot, os.ModePerm)
+	}
+
+	// write the js sdk
+	// add source map url
+	jsCode = append(jsCode, []byte("\n//# sourceMappingURL=libsui.min.js.map")...)
+	err = os.WriteFile(file, jsCode, 0644)
+	if err != nil {
+		return err
+	}
+
+	// write the source map
+	err = os.WriteFile(mapFile, sourceMap, 0644)
+	return nil
 }
 
 func (tmpl *Template) writeGlobalScript(data map[string]interface{}) error {
@@ -354,7 +398,7 @@ func (page *Page) Build(globalCtx *core.GlobalBuildContext, option *core.BuildOp
 	}
 	page.Root = root
 
-	html, warnings, err := page.Page.Compile(ctx, option)
+	html, config, warnings, err := page.Page.Compile(ctx, option)
 	if err != nil {
 		return warnings, fmt.Errorf("Compile the page %s error: %s", page.Route, err.Error())
 	}
@@ -373,6 +417,12 @@ func (page *Page) Build(globalCtx *core.GlobalBuildContext, option *core.BuildOp
 
 	// Save the locale files
 	err = page.writeLocaleFiles(ctx, option.Data)
+	if err != nil {
+		return warnings, err
+	}
+
+	// Save the config file
+	err = page.writeConfig([]byte(config), option.Data)
 	if err != nil {
 		return warnings, err
 	}
@@ -484,7 +534,7 @@ func (page *Page) Trans(globalCtx *core.GlobalBuildContext, option *core.BuildOp
 	warnings := []string{}
 	ctx := core.NewBuildContext(globalCtx)
 
-	_, messages, err := page.Page.Compile(ctx, option)
+	_, _, messages, err := page.Page.Compile(ctx, option)
 	if err != nil {
 		return warnings, err
 	}
@@ -692,7 +742,7 @@ func (page *Page) writeBackendScript(data map[string]interface{}) error {
 	}
 
 	ext := filepath.Ext(file)
-	scriptFile := fmt.Sprintf("%s%s", page.publicFile(data), ext)
+	scriptFile := fmt.Sprintf("%s.backend%s", page.publicFile(data), ext)
 	scriptFileAbs := filepath.Join(application.App.Root(), scriptFile)
 	dir := filepath.Dir(scriptFileAbs)
 	if exist, _ := os.Stat(dir); exist == nil {
@@ -721,6 +771,21 @@ func (page *Page) writeHTML(html []byte, data map[string]interface{}) error {
 	}
 
 	core.RemoveCache(htmlFile)
+	return nil
+}
+
+// writeHTMLTo write the html to file
+func (page *Page) writeConfig(config []byte, data map[string]interface{}) error {
+	configFile := fmt.Sprintf("%s.cfg", page.publicFile(data))
+	configFileAbs := filepath.Join(application.App.Root(), configFile)
+	dir := filepath.Dir(configFileAbs)
+	if exist, _ := os.Stat(dir); exist == nil {
+		os.MkdirAll(dir, os.ModePerm)
+	}
+	err := os.WriteFile(configFileAbs, config, 0644)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 

@@ -130,7 +130,8 @@ bindata:
 	cp -r ui .tmp/data/public
 	cp -r xgen .tmp/data/
 	cp -r yao .tmp/data/
-	cp -r builder .tmp/data/
+	cp -r sui/libsui .tmp/data/
+	find .tmp/data -name ".DS_Store" -type f -delete
 	go-bindata -fs -pkg data -o data/bindata.go -prefix ".tmp/data/" .tmp/data/...
 	rm -rf .tmp/data
 	rm -rf .tmp/yao-init
@@ -171,6 +172,7 @@ artifacts-linux: clean
 	cp -r ../xgen-v1.0/packages/xgen/dist .tmp/data/xgen/v1.0
 	cp -r ../yao-init .tmp/data/init
 	cp -r yao .tmp/data/
+	cp -r sui/libsui .tmp/data/
 	go-bindata -fs -pkg data -o data/bindata.go -prefix ".tmp/data/" .tmp/data/...
 	rm -rf .tmp/data
 
@@ -229,6 +231,7 @@ artifacts-macos: clean
 	cp -r ../xgen-v1.0/packages/xgen/dist .tmp/data/xgen/v1.0
 	cp -r ../yao-init .tmp/data/init
 	cp -r yao .tmp/data/
+	cp -r sui/libsui .tmp/data/
 	go-bindata -fs -pkg data -o data/bindata.go -prefix ".tmp/data/" .tmp/data/...
 	rm -rf .tmp/data
 
@@ -314,6 +317,7 @@ release: clean
 	mkdir -p .tmp/data/xgen
 	cp -r ./ui .tmp/data/ui
 	cp -r ./yao .tmp/data/yao
+	cp -r ./sui/libsui .tmp/data/libsui
 	cp -r .tmp/xgen/v0.9/dist .tmp/data/xgen/v0.9
 	cp -r .tmp/xgen/v1.0/packages/setup/build .tmp/data/xgen/setup
 	cp -r .tmp/xgen/v1.0/packages/xgen/dist .tmp/data/xgen/v1.0
