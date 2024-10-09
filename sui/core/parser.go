@@ -31,6 +31,10 @@ type TemplateParser struct {
 
 // ParserContext parser context for the template
 type ParserContext struct {
+	scriptMaps map[string]bool // parsed components
+	styleMaps  map[string]bool // parsed styles
+	scripts    []ScriptNode    // scripts
+	styles     []StyleNode     // styles
 }
 
 // Mapping mapping for the template
@@ -56,37 +60,43 @@ type ParserOption struct {
 	Request      *Request          `json:"request,omitempty"`
 }
 
-var keepWords = map[string]bool{
-	"s:if":        true,
-	"s:for":       true,
-	"s:for-item":  true,
-	"s:for-index": true,
-	"s:elif":      true,
-	"s:else":      true,
-	"s:set":       true,
-	"s:bind":      true,
-}
+// var keepWords = map[string]bool{
+// 	"s:if":        true,
+// 	"s:for":       true,
+// 	"s:for-item":  true,
+// 	"s:for-index": true,
+// 	"s:elif":      true,
+// 	"s:else":      true,
+// 	"s:set":       true,
+//  "set": 	   	   true,
+// 	"s:bind":      true,
+// }
 
 var allowUsePropAttrs = map[string]bool{
-	"s:if":       true,
-	"s:elif":     true,
-	"s:for":      true,
-	"s:event":    true,
-	"s:event-cn": true,
-	"s:render":   true,
-	"s:public":   true,
-	"s:assets":   true,
+	"s:if":        true,
+	"s:elif":      true,
+	"s:for":       true,
+	"s:event":     true,
+	"s:event-jit": true,
+	"s:event-cn":  true,
+	"s:render":    true,
+	"s:public":    true,
+	"s:assets":    true,
+	"s:route":     true,
 }
 
 var keepAttrs = map[string]bool{
-	"s:ns":       true,
-	"s:cn":       true,
-	"s:ready":    true,
-	"s:event":    true,
-	"s:event-cn": true,
-	"s:render":   true,
-	"s:public":   true,
-	"s:assets":   true,
+	"s:ns":        true,
+	"s:cn":        true,
+	"s:hash":      true,
+	"s:ready":     true,
+	"s:event":     true,
+	"s:event-jit": true,
+	"s:event-cn":  true,
+	"s:render":    true,
+	"s:public":    true,
+	"s:assets":    true,
+	"s:route":     true,
 }
 
 // NewTemplateParser create a new template parser
@@ -143,6 +153,17 @@ func (parser *TemplateParser) Render(html string) (string, error) {
 		head.AppendHtml(headInjectionScript(data))
 		parser.addScripts(head, parser.filterScripts("head", parser.scripts))
 		parser.addStyles(head, parser.styles)
+
+		// Append the just-in-time components
+		if parser.context != nil {
+			if parser.context.scripts != nil && len(parser.context.scripts) > 0 {
+				parser.addScripts(head, parser.filterScripts("head", parser.context.scripts))
+			}
+			if parser.context.scripts != nil && len(parser.context.styles) > 0 {
+				parser.addStyles(head, parser.context.styles)
+			}
+		}
+
 	}
 
 	// Append the data to the body
@@ -154,6 +175,11 @@ func (parser *TemplateParser) Render(html string) (string, error) {
 		}
 		body.AppendHtml(bodyInjectionScript(data, parser.debug()))
 		parser.addScripts(body, parser.filterScripts("body", parser.scripts))
+
+		// Append the just-in-time components
+		if parser.context != nil && len(parser.context.scripts) > 0 {
+			parser.addScripts(body, parser.filterScripts("body", parser.context.scripts))
+		}
 	}
 
 	// For editor
@@ -244,7 +270,8 @@ func (parser *TemplateParser) parseElementNode(sel *goquery.Selection) {
 		parser.ifStatementNode(sel)
 	}
 
-	if _, exist := sel.Attr("s:set"); exist || node.Data == "s:set" {
+	// keep the node if the editor is enabled
+	if _, exist := sel.Attr("s:set"); exist || node.Data == "s:set" || node.Data == "set" {
 		parser.setStatementNode(sel)
 	}
 
@@ -336,6 +363,7 @@ func (parser *TemplateParser) parseElementComponent(sel *goquery.Selection) {
 		setError(sel, err)
 	}
 	parser.sequence = compParser.sequence + 1
+	parser.context = compParser.context
 
 }
 
@@ -874,6 +902,7 @@ func (parser *TemplateParser) show(sel *goquery.Selection) {
 	// sel.SetAttr("style", style)
 }
 
+// Tidy the template by removing the parsed attributes
 func (parser *TemplateParser) Tidy(s *goquery.Selection) {
 
 	s.Contents().Each(func(i int, child *goquery.Selection) {

@@ -65,6 +65,43 @@ func (parser *TemplateParser) parseJitComponent(sel *goquery.Selection) {
 	}
 	parser.parseElementComponent(comsel)
 	sel.ReplaceWithSelection(comsel)
+
+	if len(comp.scripts) == 0 && len(comp.styles) == 0 {
+		return
+	}
+
+	if parser.context == nil {
+		parser.context = &ParserContext{
+			scripts:    []ScriptNode{},
+			styles:     []StyleNode{},
+			scriptMaps: map[string]bool{},
+			styleMaps:  map[string]bool{},
+		}
+	}
+
+	// Add the scripts
+	if comp.scripts != nil {
+		for _, script := range comp.scripts {
+			hash := script.Hash()
+			if parser.context.scriptMaps[hash] {
+				continue
+			}
+			script.Parent = "head"
+			parser.context.scriptMaps[hash] = true
+			parser.context.scripts = append(parser.context.scripts, script)
+		}
+	}
+
+	// Add the styles
+	if comp.styles != nil {
+		for _, style := range comp.styles {
+			if parser.context.styleMaps[style.Component] {
+				continue
+			}
+			parser.context.styles = append(parser.context.styles, style)
+			parser.context.styleMaps[style.Component] = true
+		}
+	}
 }
 
 func (parser *TemplateParser) newJitComponentSel(sel *goquery.Selection, comp *JitComponent) (*goquery.Selection, error) {
@@ -81,6 +118,8 @@ func (parser *TemplateParser) newJitComponentSel(sel *goquery.Selection, comp *J
 	if err != nil {
 		return nil, fmt.Errorf("Component %s failed to load, please recompile the component. %s", comp.route, err.Error())
 	}
+
+	root := doc.Find("body").First()
 	compSel := doc.Find("body").Children().First()
 	data := Data{}
 	for _, attr := range sel.Nodes[0].Attr {
@@ -139,6 +178,9 @@ func (parser *TemplateParser) newJitComponentSel(sel *goquery.Selection, comp *J
 		compSel.SetAttr(fmt.Sprintf("prop:%s", key), val)
 	}
 
+	// Mark as jit component
+	compSel.SetAttr("s:route", comp.route)
+
 	// Replace the slots
 	slots := sel.Find("slot")
 	if slots.Length() > 0 {
@@ -160,6 +202,7 @@ func (parser *TemplateParser) newJitComponentSel(sel *goquery.Selection, comp *J
 	// Replace the children
 	children := sel.Contents()
 	compSel.Find("children").ReplaceWithSelection(children)
+	parser.BindEvent(root, ns, cn) // bind the events
 	return compSel, nil
 }
 
@@ -314,11 +357,20 @@ func (parser *TemplateParser) filterScripts(parent string, scripts []ScriptNode)
 func (parser *TemplateParser) addScripts(sel *goquery.Selection, scripts []ScriptNode) {
 	for _, script := range scripts {
 		if script.Component != "" {
-			query := fmt.Sprintf(`script[s\:cn="%s"]`, script.Component)
+			query := fmt.Sprintf(`script[s\:hash="%s"]`, script.Hash())
 			if sel.Find(query).Length() > 0 {
 				continue
 			}
 		}
+
+		src := script.AttrOr("src", "")
+		if src != "" {
+			query := fmt.Sprintf(`script[src="%s"]`, src)
+			if sel.Find(query).Length() > 0 {
+				continue
+			}
+		}
+
 		sel.AppendHtml(script.ComponentHTML(script.Namespace))
 	}
 }

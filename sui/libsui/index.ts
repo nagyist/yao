@@ -166,8 +166,7 @@ function __sui_event_handler(event, dataKeys, jsonKeys, target, root, handler) {
 }
 
 function __sui_event_init(elm: Element) {
-  const eventElms = elm.querySelectorAll("[s\\:event]");
-  eventElms.forEach((eventElm) => {
+  const bindEvent = (eventElm) => {
     const cn = eventElm.getAttribute("s:event-cn") || "";
     if (cn == "") {
       console.error("[SUI] Component name is required for event binding", elm);
@@ -204,7 +203,14 @@ function __sui_event_init(elm: Element) {
         continue;
       }
 
-      const comp = new window[cn](eventElm.closest(`[s\\:cn=${cn}]`));
+      const component = eventElm.closest(`[s\\:cn=${cn}]`);
+      if (typeof window[cn] !== "function") {
+        console.error(`[SUI] Component ${cn} not found`, eventElm);
+        return;
+      }
+
+      // @ts-ignore
+      const comp = new window[cn](component);
       const handler = comp[bind];
       const root = comp.root;
       const target = eventElm;
@@ -212,7 +218,12 @@ function __sui_event_init(elm: Element) {
         __sui_event_handler(event, dataKeys, jsonKeys, target, root, handler);
       });
     }
-  });
+  };
+
+  const eventElms = elm.querySelectorAll("[s\\:event]");
+  const jitEventElms = elm.querySelectorAll("[s\\:event-jit]");
+  eventElms.forEach((eventElm) => bindEvent(eventElm));
+  jitEventElms.forEach((eventElm) => bindEvent(eventElm));
 }
 
 function __sui_store(elm) {
@@ -342,9 +353,22 @@ async function __sui_render(
     _data = { ..._data, ...__sui_data };
   }
 
-  const route = window.location.pathname;
+  // get s:route attribute
+  const elm = comp.root.closest("[s\\:route]");
+  const routeAttr = elm ? elm.getAttribute("s:route") : false;
+  const root = document.body.getAttribute("s:public") || "";
+  const route = routeAttr ? `${root}${routeAttr}` : window.location.pathname;
+  option.component = (routeAttr && comp.root.getAttribute("s:cn")) || "";
+
   const url = `/api/__yao/sui/v1/render${route}`;
-  const payload = { name, data: { ..._data, ...data }, option };
+  const payload = { name, data: _data, option };
+
+  // merge the user data
+  if (data) {
+    for (const key in data) {
+      payload.data[key] = data[key];
+    }
+  }
   const headers = {
     "Content-Type": "application/json",
     Cookie: document.cookie,
@@ -362,7 +386,12 @@ async function __sui_render(
     // Set the response text to the elements
     elms.forEach((elm) => {
       elm.innerHTML = text;
-      __sui_event_init(elm);
+      try {
+        __sui_event_init(elm);
+      } catch (e) {
+        const message = e.message || "Failed to init events";
+        Promise.reject(message);
+      }
     });
 
     return Promise.resolve(text);
@@ -391,6 +420,7 @@ export type RenderOption = {
   showLoader?: HTMLElement | string | boolean; // default is false
   replace?: boolean; // default is true
   withPageData?: boolean; // default is false
+  component?: string; // default is empty
 };
 
 export type ComponentState = {

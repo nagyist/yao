@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"hash/fnv"
 	"regexp"
 	"strings"
 
@@ -220,12 +221,21 @@ func (page *Page) CompileHTML(source []byte, minify bool) ([]byte, error) {
 	return source, nil
 }
 
+// Hash return the hash of the script
+func (script ScriptNode) Hash() string {
+	raw := fmt.Sprintf("%s|%v|%s", script.Component, script.Attrs, script.Parent)
+	h := fnv.New64a()
+	h.Write([]byte(raw))
+	return fmt.Sprintf("script_%x", h.Sum64())
+}
+
 // HTML return the html of the script
 func (script ScriptNode) HTML() string {
 
 	attrs := []string{
 		"s:ns=\"" + script.Namespace + "\"",
 		"s:cn=\"" + script.Component + "\"",
+		"s:hash=\"" + script.Hash() + "\"",
 	}
 	if script.Attrs != nil {
 		for _, attr := range script.Attrs {
@@ -245,6 +255,7 @@ func (script ScriptNode) ComponentHTML(ns string) string {
 	attrs := []string{
 		"s:ns=\"" + ns + "\"",
 		"s:cn=\"" + script.Component + "\"",
+		"s:hash=\"" + script.Hash() + "\"",
 	}
 	if script.Attrs != nil {
 		for _, attr := range script.Attrs {
@@ -256,11 +267,35 @@ func (script ScriptNode) ComponentHTML(ns string) string {
 		return "<script " + strings.Join(attrs, " ") + "></script>"
 	}
 
-	source := fmt.Sprintf(`function %s(){%s};`, script.Component, script.Source)
+	source := script.Source
+	if !strings.Contains(script.Source, "function "+script.Component) {
+		source = fmt.Sprintf(`function %s( component ){%s};`, script.Component, script.Source)
+	}
+
 	if script.Component == "" {
 		return "<script " + strings.Join(attrs, " ") + ">\n" + script.Source + "\n</script>"
 	}
 	return "<script " + strings.Join(attrs, " ") + ">\n" + source + "\n</script>"
+}
+
+// AttrOr return the attribute value or the default value
+func (script ScriptNode) AttrOr(key string, or string) string {
+	for _, attr := range script.Attrs {
+		if attr.Key == key {
+			return attr.Val
+		}
+	}
+	return or
+}
+
+// AttrOr return the attribute value or the default value
+func (style StyleNode) AttrOr(key string, or string) string {
+	for _, attr := range style.Attrs {
+		if attr.Key == key {
+			return attr.Val
+		}
+	}
+	return or
 }
 
 // HTML return the html of the style node

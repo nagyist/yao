@@ -31,16 +31,31 @@ func (page *Page) BindEvent(ctx *BuildContext, sel *goquery.Selection, cn string
 }
 
 // BindEvent is a method that binds events to the component in just-in-time mode.
+// This is temporarily used in the JIT mode. It will be refectored in the future.
 func (parser *TemplateParser) BindEvent(sel *goquery.Selection, ns string, cn string) {
+
+	hasEvent := false
 	sel.FindMatcher(eventMatcher).Each(func(i int, s *goquery.Selection) {
-		script := GetEventScript(parser.sequence, s, ns, cn, "event-jit", false)
-		if script != nil {
-			script.Component = ""
-			script.Parent = "body"
-			parser.scripts = append(parser.scripts, *script)
-			parser.sequence++
+		if _, has := s.Attr("s:event-cn"); has {
+			return
 		}
+		id := fmt.Sprintf("%s-%d-%d", ns, parser.sequence, i+1)
+		s.SetAttr("s:event", id)
+		ReplaceEventData(s)
+		s.SetAttr("s:event-cn", cn)
+		parser.sequence++
+		hasEvent = true
 	})
+
+	if !hasEvent {
+		return
+	}
+
+	// Bind page event
+	compSel := sel.Children().First()
+	id := fmt.Sprintf("%s-%d", ns, parser.sequence)
+	compSel.SetAttr("s:event-cn", "__page")
+	compSel.SetAttr("s:event-jit", id)
 }
 
 // GetEventScript the event script
